@@ -18,12 +18,21 @@ type PingMsg struct {
 }
 
 type Invocation struct {
-	Type      int    `json:"type"`
-	Target    string `json:"target"`
-	Arguments []any  `json:"arguments"`
+	Type         int    `json:"type"`
+	InvocationId string `json:"invocationId"`
+	Target       string `json:"target"`
+	Arguments    []any  `json:"arguments"`
+}
+
+type Completion struct {
+	Type         int    `json:"type"`
+	InvocationId string `json:"invocationId"`
+	Result       any    `json:"result"`
+	Error        string `json:"error,omitempty"`
 }
 
 const (
 	InvocationType = 1
+	CompletionType = 3
 	PingType       = 6
 )

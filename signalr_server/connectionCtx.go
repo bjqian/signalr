@@ -93,6 +93,32 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 				go func() {
 					response := method.Call(values)
 					logDebug(response)
+					resultsArray := make([]any, len(response))
+					for i, r := range response {
+						resultsArray[i] = r.Interface()
+					}
+					var result any
+					switch len(resultsArray) {
+					case 0:
+						result = nil
+					case 1:
+						result = resultsArray[0]
+					default:
+						result = resultsArray
+					}
+					if invocation.InvocationId != "" {
+						invocationResult := Completion{
+							Type:         CompletionType,
+							InvocationId: invocation.InvocationId,
+							Result:       result,
+						}
+						invocationResultBytes, err := json.Marshal(invocationResult)
+						if err != nil {
+							ctx.writeError(err)
+							return
+						}
+						ctx.writeMsg(invocationResultBytes)
+					}
 				}()
 			default:
 				ctx.writeError(errors.New("unknown message type"))
@@ -106,15 +132,17 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 }
 
 func (ctx *connectionCtx) flushLoop() {
-	select {
-	case <-ctx.closeCh:
-		logDebug("connection ended")
-		return
-	case msg := <-ctx.msgCh:
-		err := ctx.conn.WriteMessage(websocket.TextMessage, appendRecordSeparator(msg))
-		if err != nil {
-			ctx.writeError(err)
+	for {
+		select {
+		case <-ctx.closeCh:
+			logDebug("connection ended")
 			return
+		case msg := <-ctx.msgCh:
+			err := ctx.conn.WriteMessage(websocket.TextMessage, appendRecordSeparator(msg))
+			if err != nil {
+				ctx.writeError(err)
+				return
+			}
 		}
 	}
 }

@@ -9,9 +9,15 @@ type Chat struct {
 	signalr_server.Hub
 }
 
-func (chat Chat) Do(message string) {
+func (chat Chat) Send(message string) {
 	log.Println(message)
 	chat.Clients().All().Send("Receive", message+" from signalr_server")
+}
+
+func (chat Chat) Invoke(message string) bool {
+	log.Println(message)
+	chat.Clients().All().Send("Receive", message+" from signalr_server")
+	return true
 }
 
 func main() {

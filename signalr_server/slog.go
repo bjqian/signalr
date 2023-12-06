@@ -1,7 +1,7 @@
 package signalr_server
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"time"
@@ -41,7 +41,7 @@ func logFatal(message any, err error) {
 func logCore(level int32, message any, err error) {
 	if level >= slog.Load() {
 		levelStr := logLevelToString(level)
-		log.Printf("%s %v %v %v\n", levelStr, time.Now(), message, err)
+		fmt.Printf("%s %v %v %v\n", levelStr, time.Now(), message, err)
 	}
 }
 
