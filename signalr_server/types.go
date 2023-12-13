@@ -1,5 +1,16 @@
 package signalr_server
 
+type NegotiateResponse struct {
+	ConnectionId        string                 `json:"connectionId"`
+	NegotiateVersion    int                    `json:"negotiateVersion"`
+	AvailableTransports []TransportDescription `json:"availableTransports"`
+}
+
+type TransportDescription struct {
+	Transport       string   `json:"transport"`
+	TransferFormats []string `json:"transferFormats"`
+}
+
 type HandshakeRequest struct {
 	Protocol string `json:"protocol"`
 	Version  int    `json:"version"`

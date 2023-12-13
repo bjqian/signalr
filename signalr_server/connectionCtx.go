@@ -36,7 +36,9 @@ func (ctx *connectionCtx) handshake() error {
 		logFatal("not text message", nil)
 	}
 
-	ctx.connectionId = uuid.NewString()
+	if ctx.connectionId == "" {
+		ctx.connectionId = uuid.NewString()
+	}
 
 	handshakeResponse := &HandshakeResponse{}
 	handshakeResponseBytes, err := json.Marshal(handshakeResponse)
