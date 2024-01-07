@@ -9,12 +9,7 @@ type Chat struct {
 	signalr_server.Hub
 }
 
-func (chat Chat) Send(message string) {
-	log.Println(message)
-	chat.Clients().All().Send("Receive", message+" from signalr_server")
-}
-
-func (chat Chat) Invoke(message string) bool {
+func (chat Chat) Hi(message string) bool {
 	log.Println(message)
 	chat.Clients().All().Send("Receive", message+" from signalr_server")
 	return true
@@ -25,7 +20,7 @@ func main() {
 	server := signalr_server.Server{}
 	hub := &Chat{}
 	hub.Options.PingInterval = 5000
-	hub.Options.PingTimeout = 120000
+	hub.Options.PingTimeout = 10000
 	server.RegisterHubs(hub)
 	server.Start()
 }

@@ -1,1 +1,7 @@
 /.idea/
+/tools/CSharpClient/bin/
+/tools/CSharpClient/obj/
+/tools/CSharpClient/.idea/
+/tools/CSharpServer/bin/
+/tools/CSharpServer/obj/
+/tools/.idea/

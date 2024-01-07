@@ -4,3 +4,4 @@ Issues:
 The "" empty field makes the .net client think the server is responding with an error and then closes the connection with 1000
 3. Assign an interface to another interface will not involve wraping. Thus the type of the interface will not be interface. It will always point to a concrete value
    To create a rType of type interface, you need to create a pointer to the interface. And assign the pointer to an interface. Check type.Elem() to see.
+4. How to clean up a long polling connection as the heartbeat is not working.

@@ -1,6 +1,9 @@
 package signalr_server
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 type Clients interface {
 	All() Target
@@ -10,17 +13,18 @@ type Clients interface {
 	RemoveConnectionFromGroup(connection string, group string) error
 	addConnection(connectionCtx *connectionCtx)
 	removeConnection(connection string)
+	getConnection(connection string) *connectionCtx
 }
 
 type clientsImp struct {
-	clientCtxMap connectionSuite
-	groupMap     map[string]connectionSuite
+	clientCtxMap *connectionSuite
+	groupMap     *connectionGroup
 }
 
 func CreateDefaultClients() Clients {
 	return clientsImp{
-		clientCtxMap: make(connectionSuite),
-		groupMap:     make(map[string]connectionSuite),
+		clientCtxMap: &connectionSuite{},
+		groupMap:     &connectionGroup{},
 	}
 }
 
@@ -33,59 +37,82 @@ func (cImp clientsImp) All() Target {
 }
 
 func (cImp clientsImp) Group(group string) Target {
-	return cImp.groupMap[group]
+	suite, ok := cImp.groupMap.Load(group)
+	if !ok {
+		return nil
+	}
+	return suite.(*connectionSuite)
 }
 
 func (cImp clientsImp) Connection(connection string) Target {
-	return cImp.clientCtxMap[connection]
+	ctx, ok := cImp.clientCtxMap.Load(connection)
+	if !ok {
+		return nil
+	}
+	return ctx.(*connectionCtx)
 }
 
 func (cImp clientsImp) AddConnectionToGroup(connection string, group string) error {
-	connectionCtx, ok := cImp.clientCtxMap[connection]
+	ctx, ok := cImp.clientCtxMap.Load(connection)
 	if !ok {
 		return errors.New("connection not found")
 	}
-	suite, ok := cImp.groupMap[group]
-	if !ok {
-		suite = make(connectionSuite)
-		cImp.groupMap[group] = suite
-	}
-	suite[connection] = connectionCtx
+	clientCtxMap, _ := cImp.groupMap.LoadOrStore(group, &connectionSuite{})
+	clientCtxMap.(*connectionSuite).Store(connection, ctx)
 	return nil
 }
 
 func (cImp clientsImp) RemoveConnectionFromGroup(connection string, group string) error {
-	_, ok := cImp.clientCtxMap[connection]
+	_, ok := cImp.clientCtxMap.Load(connection)
 	if !ok {
 		return errors.New("connection not found")
 	}
-	suite, ok := cImp.groupMap[group]
+	suite, ok := cImp.groupMap.Load(group)
 	if !ok {
 		return errors.New("group not found")
 	}
-	delete(suite, connection)
+	suite.(*connectionSuite).Delete(connection)
 	return nil
 }
 
 // RemoveConnection
-// TODO: lock
-// TODO: avoid iterating all groups
 func (cImp clientsImp) removeConnection(connection string) {
-	delete(cImp.clientCtxMap, connection)
+	cImp.clientCtxMap.Delete(connection)
 	// remove connection from all groups
-	for _, suite := range cImp.groupMap {
-		delete(suite, connection)
-	}
+	cImp.groupMap.Range(func(key, value interface{}) bool {
+		value.(*connectionSuite).Delete(connection)
+		return true
+	})
 }
 
 func (cImp clientsImp) addConnection(connectionCtx *connectionCtx) {
-	cImp.clientCtxMap[connectionCtx.connectionId] = connectionCtx
+	cImp.clientCtxMap.Store(connectionCtx.connectionId, connectionCtx)
 }
 
-type connectionSuite map[string]*connectionCtx
-
-func (connections connectionSuite) Send(method string, args ...any) {
-	for _, client := range connections {
-		client.Send(method, args...)
+func (cImp clientsImp) getConnection(connectionId string) *connectionCtx {
+	if value, ok := cImp.clientCtxMap.Load(connectionId); ok {
+		return value.(*connectionCtx)
+	} else {
+		return nil
 	}
+}
+
+type connectionSuite struct {
+	sync.Map
+}
+
+type connectionGroup struct {
+	sync.Map
+}
+
+func (suite *connectionSuite) All() Target {
+	return suite
+}
+
+func (suite *connectionSuite) Send(method string, args ...any) {
+	suite.Range(func(key, value interface{}) bool {
+		client := value.(*connectionCtx)
+		client.Send(method, args...)
+		return true
+	})
 }

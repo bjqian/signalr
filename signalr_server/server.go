@@ -56,6 +56,10 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 				Transport:       "WebSockets",
 				TransferFormats: []string{"Text"},
 			},
+			{
+				Transport:       "LongPolling",
+				TransferFormats: []string{"Text"},
+			},
 		},
 	}
 	responseBytes, err := json.Marshal(negotiationResponse)
@@ -69,7 +73,66 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (hc handlerContext) handler(w http.ResponseWriter, r *http.Request) {
-	// skip negotiation
+	protocol := checkProtocol(r)
+	switch protocol {
+	case LongPolling:
+		hc.handleLongPolling(w, r)
+	case WebSocket:
+		hc.HandleWebSocket(w, r)
+	default:
+		logFatal("protocol not supported", nil)
+	}
+}
+
+func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Request) {
+	connectionId := r.URL.Query().Get("id")
+	if connectionId == "" {
+		logFatal("connectionId is empty", nil)
+	}
+
+	ctx := hc.hub.Clients().getConnection(connectionId)
+	switch r.Method {
+	case "GET":
+		if ctx == nil {
+			lpc := &longPollingConnection{
+				fromHub: make(chan []byte),
+				toHub:   make(chan []byte),
+			}
+			ctx = initConnectionCtx(connectionId, lpc, hc.hub)
+			lpc.end = ctx.end
+			ctx.start()
+			go ctx.waitError()
+		} else {
+			lpc, success := ctx.conn.(*longPollingConnection)
+			if !success {
+				logFatal("connection type error", nil)
+			}
+			err := lpc.waitAndFlush(w, ctx.end)
+			if err != nil {
+				ctx.writeError(err)
+				//w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+	case "POST":
+		if ctx == nil {
+			logFatal("connection not found", nil)
+		} else {
+			lpc, success := ctx.conn.(*longPollingConnection)
+			if !success {
+				logFatal("connection type error", nil)
+			}
+			err := lpc.readFromRequest(r, ctx.end)
+			if err != nil {
+				ctx.writeError(err)
+			}
+		}
+	default:
+		logFatal("method not supported", nil)
+	}
+}
+
+func (hc handlerContext) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		logError("Upgrade error", err)
@@ -78,36 +141,18 @@ func (hc handlerContext) handler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	connectionId := r.URL.Query().Get("id")
-	// todo: validate connectionId
+	wsc := &webSocketConnection{ws: conn}
+	ctx := initConnectionCtx(connectionId, wsc, hc.hub)
+	ctx.start()
+	ctx.waitError()
+}
 
-	// handshake
-	ctx := connectionCtx{conn: conn,
-		eCh:          make(chan error),
-		msgCh:        make(chan []byte),
-		closeCh:      make(chan any),
-		connectionId: connectionId,
+func checkProtocol(r *http.Request) transportProtocol {
+	connectionHeader := strings.ToLower(r.Header.Get("Connection"))
+	upgradeHeader := strings.ToLower(r.Header.Get("Upgrade"))
+	if strings.Contains(connectionHeader, "upgrade") && upgradeHeader == "websocket" {
+		return WebSocket
 	}
-	err = ctx.handshake()
-	if err != nil {
-		logError("", err)
-		return
-	}
-	defer ctx.closeGracefully()
 
-	hc.hub.Clients().addConnection(&ctx)
-	defer hc.hub.Clients().removeConnection(ctx.connectionId)
-
-	// the loop starts.
-
-	go ctx.flushLoop()
-	// handle inbound
-	go ctx.handleInbound(hc.hub)
-	// check ping
-	go ctx.checkPingLoop(hc.hub.GetOptions().PingTimeout)
-	// send ping
-	go ctx.writePingLoop(hc.hub.GetOptions().PingInterval)
-
-	err = <-ctx.eCh
-	logWarning("", err)
-	close(ctx.closeCh)
+	return LongPolling
 }

@@ -47,3 +47,11 @@ const (
 	CompletionType = 3
 	PingType       = 6
 )
+
+type transportProtocol int
+
+const (
+	WebSocket transportProtocol = iota
+	ServerSentEvents
+	LongPolling
+)
