@@ -12,7 +12,9 @@ var connection = new HubConnectionBuilder()
     .WithUrl(url, o =>
     {
         o.SkipNegotiation = false;
-        o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
+
+        o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.ServerSentEvents;
+        o.UseStatefulReconnect = true;
     }).ConfigureLogging(l =>
     {
         l.SetMinimumLevel(LogLevel.Debug);
@@ -20,7 +22,8 @@ var connection = new HubConnectionBuilder()
     })
     .Build();
 
-connection.KeepAliveInterval = TimeSpan.FromSeconds(1);
+connection.KeepAliveInterval = TimeSpan.FromSeconds(1000);
+connection.HandshakeTimeout = TimeSpan.FromSeconds(10000);
 connection.ServerTimeout = TimeSpan.FromSeconds(10000);
 connection.Closed += async (error) =>
 {

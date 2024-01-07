@@ -57,6 +57,10 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 				TransferFormats: []string{"Text"},
 			},
 			{
+				Transport:       "ServerSentEvents",
+				TransferFormats: []string{"Text"},
+			},
+			{
 				Transport:       "LongPolling",
 				TransferFormats: []string{"Text"},
 			},
@@ -73,14 +77,75 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (hc handlerContext) handler(w http.ResponseWriter, r *http.Request) {
-	protocol := checkProtocol(r)
-	switch protocol {
-	case LongPolling:
-		hc.handleLongPolling(w, r)
-	case WebSocket:
-		hc.HandleWebSocket(w, r)
+	switch r.Method {
+	case "POST":
+		connectionId := r.URL.Query().Get("id")
+		if connectionId == "" {
+			logFatal("connectionId is empty", nil)
+		}
+		ctx := hc.hub.Clients().getConnection(connectionId)
+		if ctx == nil {
+			logFatal("connection not found", nil)
+		}
+		con, ok := ctx.conn.(postDrivenConnection)
+		if !ok {
+			logFatal("connection type error", nil)
+		}
+		err := con.readFromRequest(r, ctx.end)
+		if err != nil {
+			ctx.writeError(err)
+		}
+	case "GET":
+		protocol := checkProtocol(r)
+		switch protocol {
+		case LongPolling:
+			hc.handleLongPolling(w, r)
+		case ServerSentEvents:
+			hc.handleServerSentEvents(w, r)
+		case WebSocket:
+			hc.HandleWebSocket(w, r)
+		default:
+			logFatal("protocol not supported", nil)
+		}
 	default:
-		logFatal("protocol not supported", nil)
+		logFatal("method not supported", nil)
+	}
+}
+
+func (hc handlerContext) handleServerSentEvents(w http.ResponseWriter, r *http.Request) {
+	connectionId := r.URL.Query().Get("id")
+	if connectionId == "" {
+		logFatal("connectionId is empty", nil)
+	}
+
+	ctx := hc.hub.Clients().getConnection(connectionId)
+	if ctx == nil {
+		sseC := &serverSentEventsConnection{
+			postDrivenConnectionImp: postDrivenConnectionImp{
+				fromHub: make(chan []byte),
+				toHub:   make(chan []byte),
+			},
+		}
+		ctx = initConnectionCtx(connectionId, sseC, hc.hub)
+		sseC.end = ctx.end
+		ctx.start()
+		go ctx.waitError()
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.WriteHeader(http.StatusOK)
+		//w.Write([]byte("\r\n"))
+		// Check if the ResponseWriter supports flushing
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			logFatal("Streaming unsupported!", nil)
+		}
+		flusher.Flush()
+		err := sseC.keepFlushing(flusher, w, ctx.end)
+		if err != nil {
+			ctx.writeError(err)
+		}
+	} else {
+		logFatal("sse connection reconnect", nil)
 	}
 }
 
@@ -91,44 +156,28 @@ func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Reques
 	}
 
 	ctx := hc.hub.Clients().getConnection(connectionId)
-	switch r.Method {
-	case "GET":
-		if ctx == nil {
-			lpc := &longPollingConnection{
+	if ctx == nil {
+		lpc := &longPollingConnection{
+			postDrivenConnectionImp: postDrivenConnectionImp{
 				fromHub: make(chan []byte),
 				toHub:   make(chan []byte),
-			}
-			ctx = initConnectionCtx(connectionId, lpc, hc.hub)
-			lpc.end = ctx.end
-			ctx.start()
-			go ctx.waitError()
-		} else {
-			lpc, success := ctx.conn.(*longPollingConnection)
-			if !success {
-				logFatal("connection type error", nil)
-			}
-			err := lpc.waitAndFlush(w, ctx.end)
-			if err != nil {
-				ctx.writeError(err)
-				//w.WriteHeader(http.StatusInternalServerError)
-			}
-			return
+			},
 		}
-	case "POST":
-		if ctx == nil {
-			logFatal("connection not found", nil)
-		} else {
-			lpc, success := ctx.conn.(*longPollingConnection)
-			if !success {
-				logFatal("connection type error", nil)
-			}
-			err := lpc.readFromRequest(r, ctx.end)
-			if err != nil {
-				ctx.writeError(err)
-			}
+		ctx = initConnectionCtx(connectionId, lpc, hc.hub)
+		lpc.end = ctx.end
+		ctx.start()
+		go ctx.waitError()
+	} else {
+		lpc, success := ctx.conn.(*longPollingConnection)
+		if !success {
+			logFatal("connection type error", nil)
 		}
-	default:
-		logFatal("method not supported", nil)
+		err := lpc.waitAndFlush(w, ctx.end)
+		if err != nil {
+			ctx.writeError(err)
+			//w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
 	}
 }
 
@@ -153,6 +202,9 @@ func checkProtocol(r *http.Request) transportProtocol {
 	if strings.Contains(connectionHeader, "upgrade") && upgradeHeader == "websocket" {
 		return WebSocket
 	}
-
+	acceptHeader := strings.ToLower(r.Header.Get("Accept"))
+	if strings.Contains(acceptHeader, "text/event-stream") {
+		return ServerSentEvents
+	}
 	return LongPolling
 }
