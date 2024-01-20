@@ -1,6 +1,8 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using CSharpCommon;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 Console.WriteLine("Hello, World!");
@@ -13,13 +15,14 @@ var connection = new HubConnectionBuilder()
     {
         o.SkipNegotiation = false;
 
-        o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.ServerSentEvents;
+        o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
         o.UseStatefulReconnect = true;
     }).ConfigureLogging(l =>
     {
-        l.SetMinimumLevel(LogLevel.Debug);
-        l.AddConsole();
+        // l.SetMinimumLevel(LogLevel.Debug);
+        // l.AddConsole();
     })
+    // .AddMessagePackProtocol()
     .Build();
 
 connection.KeepAliveInterval = TimeSpan.FromSeconds(1000);
@@ -47,9 +50,19 @@ connection.On<string>("Receive", (message) =>
 try
 {
     // local for go
-    await connection.SendAsync("Hi", "send from .NET 8");
-    var result= await connection.InvokeAsync<bool>("Hi", "invoke from .NET 8");
+    await connection.SendAsync("HiRaw", "send from .NET 8");
+    var result= await connection.InvokeAsync<bool>("HiRaw", "send from .NET 8");
+    Console.WriteLine($"Invoke raw result: {result}");   
+    
+    var foo = new Foo
+    {
+        Bar = "foo"
+    };
+    result= await connection.InvokeAsync<bool>("Hi", foo);
     Console.WriteLine($"Invoke result: {result}");   
+    var array=new int[]{1,2,3};
+    result= await connection.InvokeAsync<bool>("HiArray", array);
+    Console.WriteLine($"Invoke array result: {result}");
 }catch(Exception ex)
 {
     Console.WriteLine(ex.Message);

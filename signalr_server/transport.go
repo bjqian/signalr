@@ -12,23 +12,25 @@ type connection interface {
 }
 
 type webSocketConnection struct {
-	ws *websocket.Conn
+	ws          *websocket.Conn
+	messageType int
 }
 
 func (c *webSocketConnection) send(msg []byte) error {
 	if msg == nil {
 		return nil
 	}
-	return c.ws.WriteMessage(websocket.TextMessage, msg)
+	// todo: rethink this
+	if msg[len(msg)-1] == recordSeparator {
+		return c.ws.WriteMessage(websocket.TextMessage, msg)
+	} else {
+		return c.ws.WriteMessage(websocket.BinaryMessage, msg)
+	}
+
 }
 
 func (c *webSocketConnection) read() ([]byte, error) {
-	messageType, p, err := c.ws.ReadMessage()
-
-	if err == nil && messageType != websocket.TextMessage {
-		logWarning("not text message", nil)
-	}
-
+	_, p, err := c.ws.ReadMessage()
 	return p, err
 }
 

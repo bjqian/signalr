@@ -1,5 +1,23 @@
 package signalr_server
 
+import (
+	"encoding/json"
+)
+
+const (
+	InvocationType = 1
+	CompletionType = 3
+	PingType       = 6
+)
+
+type transportProtocol int
+
+const (
+	WebSocket transportProtocol = iota
+	ServerSentEvents
+	LongPolling
+)
+
 type NegotiateResponse struct {
 	ConnectionId        string                 `json:"connectionId"`
 	NegotiateVersion    int                    `json:"negotiateVersion"`
@@ -20,6 +38,8 @@ type HandshakeResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
+// Json protocol
+
 type BaseType struct {
 	Type int `json:"type"`
 }
@@ -35,23 +55,16 @@ type Invocation struct {
 	Arguments    []any  `json:"arguments"`
 }
 
+type InvocationWithJsonRawArguments struct {
+	Type         int               `json:"type"`
+	InvocationId string            `json:"invocationId"`
+	Target       string            `json:"target"`
+	Arguments    []json.RawMessage `json:"arguments"`
+}
+
 type Completion struct {
 	Type         int    `json:"type"`
 	InvocationId string `json:"invocationId"`
 	Result       any    `json:"result"`
 	Error        string `json:"error,omitempty"`
 }
-
-const (
-	InvocationType = 1
-	CompletionType = 3
-	PingType       = 6
-)
-
-type transportProtocol int
-
-const (
-	WebSocket transportProtocol = iota
-	ServerSentEvents
-	LongPolling
-)

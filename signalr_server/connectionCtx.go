@@ -17,6 +17,7 @@ type connectionCtx struct {
 	eCh          chan error
 	msgCh        chan []byte
 	end          chan any
+	prtl         protocol
 }
 
 func initConnectionCtx(connectionId string, conn connection, hub hubInterface) *connectionCtx {
@@ -38,14 +39,22 @@ func (ctx *connectionCtx) handshake() error {
 	if err != nil {
 		return err
 	}
-
-	verifyRecordSeparator(p)
+	protocol := &jsonProtocol{}
+	// todo: handle incomplete msg
+	protocol.verifyAndRemoveMessageSeparator(p)
 	handshakeRequest := &HandshakeRequest{}
 	err = json.Unmarshal(p[:len(p)-1], handshakeRequest)
 	if err != nil {
 		return err
 	}
-
+	switch handshakeRequest.Protocol {
+	case "json":
+		ctx.prtl = &jsonProtocol{}
+	case "messagepack":
+		ctx.prtl = &msgpackProtocol{}
+	default:
+		return errors.New("unknown protocol:" + handshakeRequest.Protocol)
+	}
 	if ctx.connectionId == "" {
 		ctx.connectionId = uuid.NewString()
 	}
@@ -56,7 +65,7 @@ func (ctx *connectionCtx) handshake() error {
 	if err != nil {
 		return err
 	}
-	err = ctx.conn.send(appendRecordSeparator(handshakeResponseBytes))
+	err = ctx.conn.send(protocol.appendMessageSeparator(handshakeResponseBytes))
 	if err != nil {
 		return err
 	}
@@ -76,39 +85,45 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 			return
 		}
 
-		verifyRecordSeparator(p)
-		baseType := &BaseType{}
-		err = json.Unmarshal(p[:len(p)-1], baseType)
+		p = ctx.prtl.verifyAndRemoveMessageSeparator(p)
+		msg, err := ctx.prtl.unmarshal(p)
 		if err != nil {
 			ctx.writeError(err)
 			return
 		}
-		switch baseType.Type {
-		case PingType:
+		switch m := msg.(type) {
+		case PingMsg:
 			logDebug("ping")
 			ctx.lastMsg.Store(time.Now())
-		case InvocationType:
-			invocation := &Invocation{}
-			err = json.Unmarshal(p[:len(p)-1], invocation)
-			if err != nil {
-				ctx.writeError(err)
-				return
-			}
+		case Invocation:
 			ctx.lastMsg.Store(time.Now())
-			logDebug(invocation)
-			target := invocation.Target
+			logDebug(m)
+			target := m.Target
 			method := reflect.ValueOf(hub).MethodByName(target)
+
 			if !method.IsValid() {
 				ctx.writeError(err)
 				return
 			}
-			values := make([]reflect.Value, len(invocation.Arguments))
-			for i, argument := range invocation.Arguments {
-				values[i] = reflect.ValueOf(argument)
+			values := make([]reflect.Value, len(m.Arguments))
+			numIn := method.Type().NumIn()
+			if numIn != len(m.Arguments) {
+				ctx.writeError(errors.New("wrong number of arguments"))
+				return
+			}
+			for i, argument := range m.Arguments {
+				bytes := argument.([]byte)
+				v, err := ctx.prtl.unmarshalArgument(bytes, method.Type().In(i))
+				if err != nil {
+					ctx.writeError(err)
+					return
+				}
+				values[i] = v
 			}
 			// the method might take very long time. Use another goroutine
 			go func() {
 				response := method.Call(values)
+
 				logDebug(response)
 				resultsArray := make([]any, len(response))
 				for i, r := range response {
@@ -123,13 +138,13 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 				default:
 					result = resultsArray
 				}
-				if invocation.InvocationId != "" {
+				if m.InvocationId != "" {
 					invocationResult := Completion{
 						Type:         CompletionType,
-						InvocationId: invocation.InvocationId,
+						InvocationId: m.InvocationId,
 						Result:       result,
 					}
-					invocationResultBytes, err := json.Marshal(invocationResult)
+					invocationResultBytes, err := ctx.prtl.marshal(invocationResult)
 					if err != nil {
 						ctx.writeError(err)
 						return
@@ -173,7 +188,7 @@ func (ctx *connectionCtx) writePingLoop(interval int) {
 	case <-ctx.end:
 		return
 	case <-time.After(time.Duration(interval) * time.Second):
-		ctx.writeMsg(pingMsgBytes)
+		ctx.writeMsg(ctx.prtl.pingMsg())
 	}
 }
 
@@ -191,7 +206,7 @@ func (ctx *connectionCtx) Send(method string, args ...any) {
 		Target:    method,
 		Arguments: args,
 	}
-	invocationBytes, err := json.Marshal(invocation)
+	invocationBytes, err := ctx.prtl.marshal(invocation)
 	if err != nil {
 		ctx.writeError(err)
 		return
@@ -200,7 +215,7 @@ func (ctx *connectionCtx) Send(method string, args ...any) {
 }
 
 func (ctx *connectionCtx) writeMsg(msg []byte) {
-	err := ctx.conn.send(appendRecordSeparator(msg))
+	err := ctx.conn.send(ctx.prtl.appendMessageSeparator(msg))
 	if err != nil {
 		ctx.writeError(err)
 	}

@@ -54,7 +54,7 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 		AvailableTransports: []TransportDescription{
 			{
 				Transport:       "WebSockets",
-				TransferFormats: []string{"Text"},
+				TransferFormats: []string{"Text", "Binary"},
 			},
 			{
 				Transport:       "ServerSentEvents",
@@ -62,7 +62,7 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 			},
 			{
 				Transport:       "LongPolling",
-				TransferFormats: []string{"Text"},
+				TransferFormats: []string{"Text", "Binary"},
 			},
 		},
 	}

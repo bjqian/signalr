@@ -1,3 +1,4 @@
+using CSharpCommon;
 using Microsoft.AspNetCore.SignalR;
 
 namespace CSharpServer.hubs;
