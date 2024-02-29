@@ -16,7 +16,7 @@ var connection = new HubConnectionBuilder()
         o.SkipNegotiation = false;
 
         o.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
-        o.UseStatefulReconnect = true;
+        // o.UseStatefulReconnect = true;
     }).ConfigureLogging(l =>
     {
         // l.SetMinimumLevel(LogLevel.Debug);

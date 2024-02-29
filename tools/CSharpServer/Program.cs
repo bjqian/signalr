@@ -10,7 +10,12 @@ var result=MessagePackSerializer.Deserialize<object>(bytes);
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddSignalR();
+var connectionString = Environment.GetEnvironmentVariable("connectionString");
+builder.Services.AddSignalR()
+    .AddAzureSignalR(options =>
+    {
+        options.ConnectionString = connectionString;
+    });
 var app = builder.Build();
 
 app.MapHub<Chat>("/chat");
