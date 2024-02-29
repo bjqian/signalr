@@ -3,8 +3,10 @@ package main
 import (
 	"bjqian/signalr/signalr_server"
 	_ "bjqian/signalr/signalr_server"
+	"bjqian/signalr/signalr_service/rest_api"
 	"log"
 	_ "log"
+	"os"
 )
 
 type Chat struct {
@@ -31,11 +33,16 @@ func (chat Chat) HiArray(arr []int) bool {
 	return true
 }
 
-type A struct {
-	B int
-}
-
 func main() {
+	signalr_server.SetLogLevel(signalr_server.Debug)
+	connectionString := os.Getenv("connectionString")
+	client, err := rest_api.NewSignalRRestApiClient(connectionString, "chat")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = client.RemoveUserFromGroup("user", "group")
+	err = client.BroadCastMessage("Receive", "golang")
+
 	signalr_server.SetLogLevel(signalr_server.Debug)
 	server := signalr_server.Server{}
 	hub := &Chat{}
