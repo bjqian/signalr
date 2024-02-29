@@ -93,11 +93,11 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 		}
 		switch m := msg.(type) {
 		case PingMsg:
-			logDebug("ping")
+			LogDebug("ping")
 			ctx.lastMsg.Store(time.Now())
 		case Invocation:
 			ctx.lastMsg.Store(time.Now())
-			logDebug(m)
+			LogDebug(m)
 			target := m.Target
 			method := reflect.ValueOf(hub).MethodByName(target)
 
@@ -124,7 +124,7 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 			go func() {
 				response := method.Call(values)
 
-				logDebug(response)
+				LogDebug(response)
 				resultsArray := make([]any, len(response))
 				for i, r := range response {
 					resultsArray[i] = r.Interface()
@@ -151,7 +151,7 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 					}
 					ctx.writeMsg(invocationResultBytes)
 				} else {
-					logDebug("invocationId is empty")
+					LogDebug("invocationId is empty")
 				}
 			}()
 		default:
@@ -194,13 +194,13 @@ func (ctx *connectionCtx) writePingLoop(interval int) {
 
 func (ctx *connectionCtx) waitError() {
 	err := <-ctx.eCh
-	logWarning("", err)
+	LogWarning("", err)
 	close(ctx.end)
 	ctx.closeGracefully()
 }
 
 func (ctx *connectionCtx) Send(method string, args ...any) {
-	logDebug("invoke client")
+	LogDebug("invoke client")
 	invocation := Invocation{
 		Type:      InvocationType,
 		Target:    method,

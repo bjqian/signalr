@@ -17,23 +17,23 @@ const (
 	Fatal
 )
 
-func logDebug(message any) {
+func LogDebug(message any) {
 	logCore(Debug, message, nil)
 }
 
-func logInfo(message any) {
+func LogInfo(message any) {
 	logCore(Info, message, nil)
 }
 
-func logWarning(message any, err error) {
+func LogWarning(message any, err error) {
 	logCore(Warning, message, err)
 }
 
-func logError(message any, err error) {
+func LogError(message any, err error) {
 	logCore(Error, message, err)
 }
 
-func logFatal(message any, err error) {
+func LogFatal(message any, err error) {
 	logCore(Fatal, message, err)
 	os.Exit(-1)
 }

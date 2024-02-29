@@ -32,12 +32,12 @@ func (s *Server) Start() {
 			http.HandleFunc("/"+hubName+"/negotiate", hc.negotiate)
 			http.HandleFunc("/"+hubName, hc.handler)
 		} else {
-			logFatal("hub is invalid", nil)
+			LogFatal("hub is invalid", nil)
 		}
 	}
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
-		logError("ListenAndServe: ", err)
+		LogError("ListenAndServe: ", err)
 	}
 }
 
@@ -68,7 +68,7 @@ func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
 	}
 	responseBytes, err := json.Marshal(negotiationResponse)
 	if err != nil {
-		logError("", err)
+		LogError("", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -81,15 +81,15 @@ func (hc handlerContext) handler(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		connectionId := r.URL.Query().Get("id")
 		if connectionId == "" {
-			logFatal("connectionId is empty", nil)
+			LogFatal("connectionId is empty", nil)
 		}
 		ctx := hc.hub.Clients().getConnection(connectionId)
 		if ctx == nil {
-			logFatal("connection not found", nil)
+			LogFatal("connection not found", nil)
 		}
 		con, ok := ctx.conn.(postDrivenConnection)
 		if !ok {
-			logFatal("connection type error", nil)
+			LogFatal("connection type error", nil)
 		}
 		err := con.readFromRequest(r, ctx.end)
 		if err != nil {
@@ -105,17 +105,17 @@ func (hc handlerContext) handler(w http.ResponseWriter, r *http.Request) {
 		case WebSocket:
 			hc.HandleWebSocket(w, r)
 		default:
-			logFatal("protocol not supported", nil)
+			LogFatal("protocol not supported", nil)
 		}
 	default:
-		logFatal("method not supported", nil)
+		LogFatal("method not supported", nil)
 	}
 }
 
 func (hc handlerContext) handleServerSentEvents(w http.ResponseWriter, r *http.Request) {
 	connectionId := r.URL.Query().Get("id")
 	if connectionId == "" {
-		logFatal("connectionId is empty", nil)
+		LogFatal("connectionId is empty", nil)
 	}
 
 	ctx := hc.hub.Clients().getConnection(connectionId)
@@ -137,7 +137,7 @@ func (hc handlerContext) handleServerSentEvents(w http.ResponseWriter, r *http.R
 		// Check if the ResponseWriter supports flushing
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			logFatal("Streaming unsupported!", nil)
+			LogFatal("Streaming unsupported!", nil)
 		}
 		flusher.Flush()
 		err := sseC.keepFlushing(flusher, w, ctx.end)
@@ -145,14 +145,14 @@ func (hc handlerContext) handleServerSentEvents(w http.ResponseWriter, r *http.R
 			ctx.writeError(err)
 		}
 	} else {
-		logFatal("sse connection reconnect", nil)
+		LogFatal("sse connection reconnect", nil)
 	}
 }
 
 func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Request) {
 	connectionId := r.URL.Query().Get("id")
 	if connectionId == "" {
-		logFatal("connectionId is empty", nil)
+		LogFatal("connectionId is empty", nil)
 	}
 
 	ctx := hc.hub.Clients().getConnection(connectionId)
@@ -170,7 +170,7 @@ func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Reques
 	} else {
 		lpc, success := ctx.conn.(*longPollingConnection)
 		if !success {
-			logFatal("connection type error", nil)
+			LogFatal("connection type error", nil)
 		}
 		err := lpc.waitAndFlush(w, ctx.end)
 		if err != nil {
@@ -184,7 +184,7 @@ func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Reques
 func (hc handlerContext) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logError("Upgrade error", err)
+		LogError("Upgrade error", err)
 		return
 	}
 	defer conn.Close()
