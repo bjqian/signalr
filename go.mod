@@ -1,4 +1,4 @@
-module bjqian/signalr
+module github.com/bjqian/signalr
 
 go 1.20
 
