@@ -1,10 +1,10 @@
 package rest_api
 
 import (
-	"bjqian/signalr/signalr_server"
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/bjqian/signalr/signalr_server"
 	"io"
 	"log"
 	"net/http"

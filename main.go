@@ -1,9 +1,9 @@
 package main
 
 import (
-	"bjqian/signalr/signalr_server"
-	_ "bjqian/signalr/signalr_server"
-	"bjqian/signalr/signalr_service/rest_api"
+	"github.com/bjqian/signalr/signalr_server"
+	_ "github.com/bjqian/signalr/signalr_server"
+	"github.com/bjqian/signalr/signalr_service/rest_api"
 	"log"
 	_ "log"
 	"os"
