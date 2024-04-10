@@ -49,7 +49,7 @@ connection.On<string>("Receive", (message) =>
 
 try
 {
-    // local for go
+    //local for go
     await connection.SendAsync("HiRaw", "send from .NET 8");
     var result= await connection.InvokeAsync<bool>("HiRaw", "send from .NET 8");
     Console.WriteLine($"Invoke raw result: {result}");   
@@ -63,6 +63,11 @@ try
     var array=new int[]{1,2,3};
     result= await connection.InvokeAsync<bool>("HiArray", array);
     Console.WriteLine($"Invoke array result: {result}");
+    var result2= connection.StreamAsync<string>("HiStream", "hi stream");
+    await foreach (var item in result2)
+    {
+        Console.WriteLine(item);
+    }
 }catch(Exception ex)
 {
     Console.WriteLine(ex.Message);

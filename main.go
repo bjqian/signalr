@@ -3,10 +3,9 @@ package main
 import (
 	"github.com/bjqian/signalr/signalr_server"
 	_ "github.com/bjqian/signalr/signalr_server"
-	"github.com/bjqian/signalr/signalr_service/rest_api"
 	"log"
 	_ "log"
-	"os"
+	"time"
 )
 
 type Chat struct {
@@ -33,15 +32,27 @@ func (chat Chat) HiArray(arr []int) bool {
 	return true
 }
 
+func (chat Chat) HiStream(msg string) chan string {
+	ch := make(chan string)
+	go func() {
+		for i := 0; i < 20; i++ {
+			time.Sleep(1 * time.Second)
+			ch <- msg
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func main() {
 	signalr_server.SetLogLevel(signalr_server.Debug)
-	connectionString := os.Getenv("connectionString")
-	client, err := rest_api.NewSignalRRestApiClient(connectionString, "chat")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = client.RemoveUserFromGroup("user", "group")
-	err = client.BroadCastMessage("Receive", "golang")
+	//connectionString := os.Getenv("connectionString")
+	//client, err := rest_api.NewSignalRRestApiClient(connectionString, "chat")
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//err = client.RemoveUserFromGroup("user", "group")
+	//err = client.BroadCastMessage("Receive", "golang")
 
 	signalr_server.SetLogLevel(signalr_server.Debug)
 	server := signalr_server.Server{}

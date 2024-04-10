@@ -54,6 +54,8 @@ func (p *jsonProtocol) unmarshal(raw []byte) (any, error) {
 		return nil, err
 	}
 	switch baseType.Type {
+	case StreamInvocationType:
+		fallthrough
 	case InvocationType:
 		var invocationRaw = InvocationWithJsonRawArguments{}
 		err = json.Unmarshal(raw, &invocationRaw)
@@ -167,6 +169,8 @@ func (p *msgpackProtocol) unmarshal(raw []byte) (any, error) {
 		return nil, err
 	}
 	switch t {
+	case StreamInvocationType:
+		fallthrough
 	case InvocationType:
 		if len(base) != 6 {
 			return nil, errors.New("invalid invocation message")

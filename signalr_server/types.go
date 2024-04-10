@@ -5,9 +5,11 @@ import (
 )
 
 const (
-	InvocationType = 1
-	CompletionType = 3
-	PingType       = 6
+	InvocationType       = 1
+	StreamItemType       = 2
+	CompletionType       = 3
+	StreamInvocationType = 4
+	PingType             = 6
 )
 
 type transportProtocol int
@@ -38,8 +40,6 @@ type HandshakeResponse struct {
 	Error string `json:"error,omitempty"`
 }
 
-// Json protocol
-
 type BaseType struct {
 	Type int `json:"type"`
 }
@@ -65,6 +65,12 @@ type InvocationWithJsonRawArguments struct {
 type Completion struct {
 	Type         int    `json:"type"`
 	InvocationId string `json:"invocationId"`
-	Result       any    `json:"result"`
+	Result       any    `json:"result,omitempty"`
 	Error        string `json:"error,omitempty"`
+}
+
+type StreamItem struct {
+	Type         int    `json:"type"`
+	InvocationId string `json:"invocationId"`
+	Item         any    `json:"item"`
 }

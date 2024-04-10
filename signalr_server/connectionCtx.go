@@ -139,12 +139,42 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 					result = resultsArray
 				}
 				if m.InvocationId != "" {
-					invocationResult := Completion{
+					completeMsg := Completion{
 						Type:         CompletionType,
 						InvocationId: m.InvocationId,
-						Result:       result,
 					}
-					invocationResultBytes, err := ctx.prtl.marshal(invocationResult)
+					if m.Type == StreamInvocationType {
+						if len(resultsArray) != 1 {
+							ctx.writeError(errors.New("stream method should return one result"))
+							return
+						}
+
+						v := reflect.ValueOf(result)
+						if v.Kind() != reflect.Chan {
+							ctx.writeError(errors.New("this is not a stream method"))
+							return
+						}
+						for {
+							receivedValue, ok := v.Recv()
+							if !ok {
+								break
+							}
+							invocationResult := StreamItem{
+								Type:         StreamItemType,
+								InvocationId: m.InvocationId,
+								Item:         receivedValue.Interface(),
+							}
+							invocationResultBytes, err := ctx.prtl.marshal(invocationResult)
+							if err != nil {
+								completeMsg.Error = err.Error()
+								break
+							}
+							ctx.writeMsg(invocationResultBytes)
+						}
+					} else {
+						completeMsg.Result = result
+					}
+					invocationResultBytes, err := ctx.prtl.marshal(completeMsg)
 					if err != nil {
 						ctx.writeError(err)
 						return
