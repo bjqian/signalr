@@ -3,10 +3,11 @@ package signalr_server
 import (
 	"encoding/json"
 	"errors"
-	"github.com/google/uuid"
 	"reflect"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type connectionCtx struct {
@@ -21,6 +22,8 @@ type connectionCtx struct {
 }
 
 func initConnectionCtx(connectionId string, conn connection, hub hubInterface) *connectionCtx {
+	// the called Id will be used inside the hub
+	hub.setCallerId(connectionId)
 	ctx := &connectionCtx{
 		connectionId: connectionId,
 		conn:         conn,
@@ -65,10 +68,7 @@ func (ctx *connectionCtx) handshake() error {
 	if err != nil {
 		return err
 	}
-	err = ctx.conn.send(protocol.appendMessageSeparator(handshakeResponseBytes))
-	if err != nil {
-		return err
-	}
+	ctx.writeMsg(handshakeResponseBytes)
 	return nil
 }
 
@@ -95,14 +95,18 @@ func (ctx *connectionCtx) handleInbound(hub hubInterface) {
 		case PingMsg:
 			LogDebug("ping")
 			ctx.lastMsg.Store(time.Now())
+		case CloseMsg:
+			ctx.closeGracefully()
 		case Invocation:
 			ctx.lastMsg.Store(time.Now())
 			LogDebug(m)
 			target := m.Target
+			// So we don't modify the template hub
+
 			method := reflect.ValueOf(hub).MethodByName(target)
 
 			if !method.IsValid() {
-				ctx.writeError(err)
+				ctx.writeError(errors.New("method doesn't exist"))
 				return
 			}
 			values := make([]reflect.Value, len(m.Arguments))
@@ -214,11 +218,18 @@ func (ctx *connectionCtx) checkPingLoop(timeout int) {
 }
 
 func (ctx *connectionCtx) writePingLoop(interval int) {
-	select {
-	case <-ctx.end:
-		return
-	case <-time.After(time.Duration(interval) * time.Second):
-		ctx.writeMsg(ctx.prtl.pingMsg())
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.end:
+			return
+		case <-ticker.C:
+			if ctx.prtl != nil {
+				ctx.writeMsg(ctx.prtl.pingMsg())
+			}
+		}
 	}
 }
 

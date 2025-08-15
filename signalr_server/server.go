@@ -2,11 +2,12 @@ package signalr_server
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"reflect"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 type Server struct {
@@ -21,7 +22,7 @@ func (s *Server) RegisterHubs(hubs ...hubInterface) {
 	s.hubs = append(s.hubs, hubs...)
 }
 
-func (s *Server) Start() {
+func (s *Server) BindHubs(handle func(pattern string, handler func(http.ResponseWriter, *http.Request))) {
 	for _, hub := range s.hubs {
 		hubVal := reflect.ValueOf(hub)
 		if hubVal.Kind() == reflect.Ptr && !hubVal.IsNil() {
@@ -29,12 +30,16 @@ func (s *Server) Start() {
 			hubName = strings.ToLower(hubName)
 			hub.init(CreateDefaultClients())
 			hc := handlerContext{hub: hub}
-			http.HandleFunc("/"+hubName+"/negotiate", hc.negotiate)
-			http.HandleFunc("/"+hubName, hc.handler)
+			handle("/"+hubName+"/negotiate", hc.negotiate)
+			handle("/"+hubName, hc.handler)
 		} else {
 			LogFatal("hub is invalid", nil)
 		}
 	}
+}
+
+func (s *Server) Start() {
+	s.BindHubs(http.HandleFunc)
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		LogError("ListenAndServe: ", err)
@@ -44,6 +49,9 @@ func (s *Server) Start() {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func (hc handlerContext) negotiate(w http.ResponseWriter, r *http.Request) {
@@ -126,7 +134,9 @@ func (hc handlerContext) handleServerSentEvents(w http.ResponseWriter, r *http.R
 				toHub:   make(chan []byte),
 			},
 		}
-		ctx = initConnectionCtx(connectionId, sseC, hc.hub)
+		hub := shallowCopyHubInterface(hc.hub)
+		hub.setContext(r.Context())
+		ctx = initConnectionCtx(connectionId, sseC, hub)
 		sseC.end = ctx.end
 		ctx.start()
 		go ctx.waitError()
@@ -163,7 +173,9 @@ func (hc handlerContext) handleLongPolling(w http.ResponseWriter, r *http.Reques
 				toHub:   make(chan []byte),
 			},
 		}
-		ctx = initConnectionCtx(connectionId, lpc, hc.hub)
+		hub := shallowCopyHubInterface(hc.hub)
+		hub.setContext(r.Context())
+		ctx = initConnectionCtx(connectionId, lpc, hub)
 		lpc.end = ctx.end
 		ctx.start()
 		go ctx.waitError()
@@ -191,7 +203,9 @@ func (hc handlerContext) HandleWebSocket(w http.ResponseWriter, r *http.Request)
 
 	connectionId := r.URL.Query().Get("id")
 	wsc := &webSocketConnection{ws: conn}
-	ctx := initConnectionCtx(connectionId, wsc, hc.hub)
+	hub := shallowCopyHubInterface(hc.hub)
+	hub.setContext(r.Context())
+	ctx := initConnectionCtx(connectionId, wsc, hub)
 	ctx.start()
 	ctx.waitError()
 }

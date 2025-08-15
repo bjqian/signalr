@@ -32,6 +32,12 @@ type Target interface {
 	Send(string, ...any)
 }
 
+type dummy struct {
+}
+
+func (d dummy) Send(string, ...any) {
+}
+
 func (cImp clientsImp) All() Target {
 	return cImp.clientCtxMap
 }
@@ -47,7 +53,7 @@ func (cImp clientsImp) Group(group string) Target {
 func (cImp clientsImp) Connection(connection string) Target {
 	ctx, ok := cImp.clientCtxMap.Load(connection)
 	if !ok {
-		return nil
+		return dummy{}
 	}
 	return ctx.(*connectionCtx)
 }

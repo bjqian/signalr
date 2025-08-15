@@ -1,9 +1,11 @@
 package signalr_server
 
 import (
-	"github.com/gorilla/websocket"
 	"io"
 	"net/http"
+	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 type connection interface {
@@ -14,12 +16,17 @@ type connection interface {
 type webSocketConnection struct {
 	ws          *websocket.Conn
 	messageType int
+	lock        sync.Mutex
 }
 
 func (c *webSocketConnection) send(msg []byte) error {
 	if msg == nil {
 		return nil
 	}
+	// This is anti pattern. It should be put into a goroutine to do send
+	// gorilla websocket doesn't support concurrent send. It will panic
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	// todo: rethink this
 	if msg[len(msg)-1] == recordSeparator {
 		return c.ws.WriteMessage(websocket.TextMessage, msg)

@@ -1,6 +1,6 @@
 module github.com/bjqian/signalr
 
-go 1.20
+go 1.24.6
 
 require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible

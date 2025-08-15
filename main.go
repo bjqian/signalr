@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/bjqian/signalr/signalr_server"
-	_ "github.com/bjqian/signalr/signalr_server"
 	"log"
 	_ "log"
 	"time"
+
+	"github.com/bjqian/signalr/signalr_server"
+	_ "github.com/bjqian/signalr/signalr_server"
 )
 
 type Chat struct {
@@ -23,7 +24,8 @@ func (chat Chat) Hi(foo Foo) bool {
 }
 
 func (chat Chat) HiRaw(msg string) bool {
-	chat.Clients().All().Send("Receive", msg)
+	//chat.Clients().All().Send("Receive", msg)
+	chat.Clients().Connection(chat.Caller).Send("Receive", "From caller")
 	return true
 }
 
@@ -57,7 +59,7 @@ func main() {
 	signalr_server.SetLogLevel(signalr_server.Debug)
 	server := signalr_server.Server{}
 	hub := &Chat{}
-	hub.Options.PingInterval = 5000
+	hub.Options.PingInterval = 5000 //  It's better to give a default
 	hub.Options.PingTimeout = 10000
 	server.RegisterHubs(hub)
 	server.Start()

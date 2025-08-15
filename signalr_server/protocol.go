@@ -73,6 +73,8 @@ func (p *jsonProtocol) unmarshal(raw []byte) (any, error) {
 		return invocation, nil
 	case PingType:
 		return PingMsg{Type: PingType}, nil
+	case CloseType:
+		return CloseMsg{Type: CloseType}, nil
 	default:
 		return nil, errors.New("unknown type")
 	}

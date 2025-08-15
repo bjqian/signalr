@@ -10,6 +10,7 @@ const (
 	CompletionType       = 3
 	StreamInvocationType = 4
 	PingType             = 6
+	CloseType            = 7
 )
 
 type transportProtocol int
@@ -48,9 +49,13 @@ type PingMsg struct {
 	Type int `json:"type"`
 }
 
+type CloseMsg struct {
+	Type int `json:"type"`
+}
+
 type Invocation struct {
 	Type         int    `json:"type"`
-	InvocationId string `json:"invocationId"`
+	InvocationId string `json:"invocationId,omitempty"`
 	Target       string `json:"target"`
 	Arguments    []any  `json:"arguments"`
 }
